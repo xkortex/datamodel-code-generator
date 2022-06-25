@@ -157,7 +157,7 @@ class JsonSchemaObject(BaseModel):
             return value.replace('#', '#/')
         return value
 
-    items: Union[List['JsonSchemaObject'], 'JsonSchemaObject', None]
+    items: Union[List['JsonSchemaObject'], 'JsonSchemaObject', bool, None]
     uniqueItems: Optional[bool]
     type: Union[str, List[str], None]
     format: Optional[str]
@@ -178,7 +178,7 @@ class JsonSchemaObject(BaseModel):
     allOf: List['JsonSchemaObject'] = []
     enum: List[Any] = []
     writeOnly: Optional[bool]
-    properties: Optional[Dict[str, 'JsonSchemaObject']]
+    properties: Optional[Dict[str, Union['JsonSchemaObject', bool]]]
     required: List[str] = []
     ref: Optional[str] = Field(default=None, alias='$ref')
     nullable: Optional[bool] = False
@@ -519,6 +519,9 @@ class JsonSchemaParser(Parser):
 
         exclude_field_names: Set[str] = set()
         for original_field_name, field in properties.items():
+            if isinstance(field, bool):
+                warn("this is experimental", UserWarning)
+                continue
 
             if field.is_array or (
                 self.field_constraints
@@ -717,6 +720,9 @@ class JsonSchemaParser(Parser):
         parent: JsonSchemaObject,
         singular_name: bool = True,
     ) -> List[DataType]:
+        if isinstance(target_items, bool):
+            warn("this is experimental", UserWarning)
+            return []
         return [
             self.parse_item(
                 name,
@@ -1087,11 +1093,16 @@ class JsonSchemaParser(Parser):
         return reference
 
     def parse_ref(self, obj: JsonSchemaObject, path: List[str]) -> None:
+        if isinstance(obj, bool):
+            warn("this is experimental", UserWarning)
+            return
         if obj.ref:
             self.resolve_ref(obj.ref)
         if obj.items:
             if isinstance(obj.items, JsonSchemaObject):
                 self.parse_ref(obj.items, path)
+            elif isinstance(obj.items, bool):
+                warn("this is experimental", UserWarning)
             else:
                 for item in obj.items:
                     self.parse_ref(item, path)
@@ -1111,11 +1122,17 @@ class JsonSchemaParser(Parser):
                 self.parse_ref(value, path)
 
     def parse_id(self, obj: JsonSchemaObject, path: List[str]) -> None:
+        if isinstance(obj, bool):
+            warn("this is experimental", UserWarning)
+            return
         if obj.id:
             self.model_resolver.add_id(obj.id, path)
         if obj.items:
             if isinstance(obj.items, JsonSchemaObject):
                 self.parse_id(obj.items, path)
+            elif isinstance(obj.items, bool):
+                warn("this is experimental", UserWarning)
+                return
             else:
                 for item in obj.items:
                     self.parse_id(item, path)
